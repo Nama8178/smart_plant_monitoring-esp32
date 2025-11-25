@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plant Monitor - ESP32</title>
+    <link rel="stylesheet" href="esp32-styles.css">
+</head>
+<body>
+    <!-- WiFi Setup Page -->
+    <div id="setupPage" class="page active">
+        <div class="container">
+            <div class="card setup-card">
+                <h1>WiFi Setup</h1>
+                <p class="subtitle">Connect your ESP32 to WiFi</p>
+                <form id="wifiForm">
+                    <div class="form-group">
+                        <label for="ssid">WiFi Network (SSID)</label>
+                        <input type="text" id="ssid" required placeholder="Enter network name">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required placeholder="Enter password">
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="connectBtn">
+                        Connect to WiFi
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Page -->
+    <div id="dashboardPage" class="page">
+        <div class="container">
+            <header class="header">
+                <h1>🌱 Plant Monitor</h1>
+                <button class="btn btn-secondary" onclick="resetWifi()">WiFi Settings</button>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Plants</h3>
+                    <p class="stat-value" id="totalPlants">0</p>
+                </div>
+                <div class="stat-card stat-healthy">
+                    <h3>Healthy</h3>
+                    <p class="stat-value" id="healthyPlants">0</p>
+                </div>
+                <div class="stat-card stat-warning">
+                    <h3>Need Attention</h3>
+                    <p class="stat-value" id="warningPlants">0</p>
+                </div>
+            </div>
+
+            <div id="plantsGrid" class="plants-grid"></div>
+        </div>
+    </div>
+
+    <!-- Plant Detail Modal -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeDetail()">&times;</span>
+            <div id="detailContent"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="esp32-script.js"></script>
+</body>
+</html>
