@@ -35,8 +35,32 @@
         <div class="container">
             <header class="header">
                 <h1>🌱 Plant Monitor</h1>
-                <button class="btn btn-secondary" onclick="resetWifi()">WiFi Settings</button>
+                <div class="header-info">
+                    <span class="wifi-status" id="wifiStatus">Connected</span>
+                    <button class="btn btn-secondary" onclick="resetWifi()">WiFi Settings</button>
+                </div>
             </header>
+
+            <!-- Environment Card -->
+            <div class="environment-card card">
+                <h2>Environment</h2>
+                <div class="environment-metrics">
+                    <div class="environment-metric">
+                        <div class="metric-icon">🌡️</div>
+                        <div class="metric-info">
+                            <span class="metric-label">Temperature</span>
+                            <span class="metric-value" id="globalTemperature">--°C</span>
+                        </div>
+                    </div>
+                    <div class="environment-metric">
+                        <div class="metric-icon">💧</div>
+                        <div class="metric-info">
+                            <span class="metric-label">Humidity</span>
+                            <span class="metric-value" id="globalHumidity">--%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="stats-grid">
                 <div class="stat-card">

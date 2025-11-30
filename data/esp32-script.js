@@ -1,12 +1,13 @@
-// Mock plant data - Replace with ESP32 sensor data
+// Plant data - Will be populated from ESP32 sensor data
 let plants = [
     {
         id: 1,
         name: 'Monstera Deliciosa',
         imageUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="%2310b981" width="300" height="200"/><text x="50%" y="50%" fill="white" font-size="20" text-anchor="middle" dy=".3em">Plant 1</text></svg>',
-        temperature: 22,
-        humidity: 65,
-        soilMoisture: 55,
+        temperature: 0,
+        humidity: 0,
+        soilMoisture: 0,
+        soilRaw: 0,
         status: 'healthy',
         lastUpdated: new Date()
     },
@@ -14,23 +15,28 @@ let plants = [
         id: 2,
         name: 'Snake Plant',
         imageUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="%23059669" width="300" height="200"/><text x="50%" y="50%" fill="white" font-size="20" text-anchor="middle" dy=".3em">Plant 2</text></svg>',
-        temperature: 24,
-        humidity: 45,
-        soilMoisture: 35,
-        status: 'warning',
+        temperature: 0,
+        humidity: 0,
+        soilMoisture: 0,
+        soilRaw: 0,
+        status: 'healthy',
         lastUpdated: new Date()
     },
     {
         id: 3,
         name: 'Peace Lily',
         imageUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect fill="%2322c55e" width="300" height="200"/><text x="50%" y="50%" fill="white" font-size="20" text-anchor="middle" dy=".3em">Plant 3</text></svg>',
-        temperature: 19,
-        humidity: 70,
-        soilMoisture: 25,
-        status: 'critical',
+        temperature: 0,
+        humidity: 0,
+        soilMoisture: 0,
+        soilRaw: 0,
+        status: 'healthy',
         lastUpdated: new Date()
     }
 ];
+
+let globalTemperature = 0;
+let globalHumidity = 0;
 
 // Check WiFi setup on load - Call ESP32 API
 window.addEventListener('DOMContentLoaded', async () => {
@@ -40,14 +46,29 @@ window.addEventListener('DOMContentLoaded', async () => {
         
         if (data.wifiConfigured) {
             showDashboard();
+            updateWifiStatus(true, data.ssid);
         } else {
             showSetup();
+            updateWifiStatus(false, 'Access Point');
         }
     } catch (error) {
         console.error('Error checking WiFi status:', error);
         showSetup();
+        updateWifiStatus(false, 'Not Connected');
     }
 });
+
+// Update WiFi status display
+function updateWifiStatus(connected, ssid) {
+    const wifiStatus = document.getElementById('wifiStatus');
+    if (connected) {
+        wifiStatus.textContent = `Connected to ${ssid}`;
+        wifiStatus.style.background = 'var(--success)';
+    } else {
+        wifiStatus.textContent = ssid;
+        wifiStatus.style.background = 'var(--warning)';
+    }
+}
 
 // WiFi Setup - Send to ESP32
 document.getElementById('wifiForm').addEventListener('submit', async (e) => {
@@ -79,6 +100,7 @@ document.getElementById('wifiForm').addEventListener('submit', async (e) => {
             showToast('Connected to WiFi successfully!');
             setTimeout(() => {
                 showDashboard();
+                updateWifiStatus(true, ssid);
             }, 2000);
         } else {
             showToast('Failed to connect: ' + data.message);
@@ -113,6 +135,7 @@ function resetWifi() {
 function renderDashboard() {
     updateStats();
     renderPlants();
+    updateEnvironmentDisplay();
 }
 
 function updateStats() {
@@ -123,6 +146,11 @@ function updateStats() {
     document.getElementById('totalPlants').textContent = total;
     document.getElementById('healthyPlants').textContent = healthy;
     document.getElementById('warningPlants').textContent = warning;
+}
+
+function updateEnvironmentDisplay() {
+    document.getElementById('globalTemperature').textContent = globalTemperature.toFixed(1) + '°C';
+    document.getElementById('globalHumidity').textContent = globalHumidity.toFixed(1) + '%';
 }
 
 function renderPlants() {
@@ -138,6 +166,8 @@ function renderPlants() {
 function createPlantCard(plant) {
     const card = document.createElement('div');
     card.className = `plant-card ${plant.status}`;
+    
+    const moistureStatus = getMoistureStatus(plant.soilMoisture);
     
     card.innerHTML = `
         <div class="plant-image">
@@ -161,22 +191,25 @@ function createPlantCard(plant) {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
                     </svg>
                     <span class="metric-label">Temp</span>
-                    <span class="metric-value">${plant.temperature}°C</span>
+                    <span class="metric-value">${plant.temperature.toFixed(1)}°C</span>
                 </div>
                 <div class="metric">
                     <svg class="metric-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
                     </svg>
                     <span class="metric-label">Humidity</span>
-                    <span class="metric-value">${plant.humidity}%</span>
+                    <span class="metric-value">${plant.humidity.toFixed(1)}%</span>
                 </div>
                 <div class="metric">
                     <svg class="metric-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
                     </svg>
                     <span class="metric-label">Moisture</span>
-                    <span class="metric-value">${plant.soilMoisture}%</span>
+                    <span class="metric-value">${plant.soilMoisture.toFixed(1)}%</span>
                 </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); text-align: center;">
+                Raw: ${plant.soilRaw} | Status: <span class="moisture-status status-${moistureStatus.class}">${moistureStatus.text}</span>
             </div>
             <button class="btn btn-outline" onclick="showDetail(${plant.id})">View Details</button>
         </div>
@@ -240,7 +273,8 @@ function showDetail(plantId) {
                 </div>
                 <div class="detail-metric-info">
                     <div class="detail-metric-label">Temperature</div>
-                    <div class="detail-metric-value">${plant.temperature}°C</div>
+                    <div class="detail-metric-value">${plant.temperature.toFixed(1)}°C</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Shared DHT sensor</div>
                 </div>
             </div>
             
@@ -252,7 +286,8 @@ function showDetail(plantId) {
                 </div>
                 <div class="detail-metric-info">
                     <div class="detail-metric-label">Air Humidity</div>
-                    <div class="detail-metric-value">${plant.humidity}%</div>
+                    <div class="detail-metric-value">${plant.humidity.toFixed(1)}%</div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Shared DHT sensor</div>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${plant.humidity}%"></div>
                     </div>
@@ -262,15 +297,16 @@ function showDetail(plantId) {
             <div class="detail-metric">
                 <div class="detail-metric-icon">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
                     </svg>
                 </div>
                 <div class="detail-metric-info">
                     <div class="detail-metric-label">Soil Moisture</div>
                     <div class="detail-metric-value">
-                        ${plant.soilMoisture}% 
-                        <span style="color: ${moistureStatus.color}; font-size: 14px;">${moistureStatus.text}</span>
+                        ${plant.soilMoisture.toFixed(1)}% 
+                        <span class="moisture-status status-${moistureStatus.class}">${moistureStatus.text}</span>
                     </div>
+                    <div style="font-size: 12px; color: var(--text-secondary);">Raw value: ${plant.soilRaw}</div>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${plant.soilMoisture}%"></div>
                     </div>
@@ -299,9 +335,9 @@ function closeDetail() {
 }
 
 function getMoistureStatus(moisture) {
-    if (moisture < 30) return { text: 'Too Dry', color: 'var(--danger)' };
-    if (moisture < 60) return { text: 'Optimal', color: 'var(--success)' };
-    return { text: 'Too Wet', color: 'var(--warning)' };
+    if (moisture < 30) return { text: 'Too Dry', color: 'var(--danger)', class: 'critical' };
+    if (moisture < 60) return { text: 'Optimal', color: 'var(--success)', class: 'healthy' };
+    return { text: 'Too Wet', color: 'var(--warning)', class: 'warning' };
 }
 
 // Toast Notification
@@ -327,10 +363,17 @@ async function fetchPlantData() {
                 plants[index].temperature = plantData.temperature;
                 plants[index].humidity = plantData.humidity;
                 plants[index].soilMoisture = plantData.soilMoisture;
+                plants[index].soilRaw = plantData.soilRaw;
                 plants[index].status = plantData.status;
                 plants[index].lastUpdated = new Date();
             }
         });
+        
+        // Update global environment values (use first plant's shared values)
+        if (data.length > 0) {
+            globalTemperature = data[0].temperature;
+            globalHumidity = data[0].humidity;
+        }
         
         renderDashboard();
     } catch (error) {

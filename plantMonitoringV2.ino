@@ -3,29 +3,36 @@
 #include <Preferences.h>
 #include <DHT.h>
 #include <LittleFS.h> // Changed from SPIFFS
+#include "OLEDDisplay.h"
 
 // --------- CONFIG ----------
 static const uint8_t DHTPIN = 4;        // DHT data pin
 static const uint8_t DHTTYPE = DHT11;   // DHT11 type
-static const uint8_t SOIL_PIN = 34;     // ADC pin for soil sensor
+static const uint8_t SOIL_PIN_1 = 34;   // ADC pin for soil sensor 1
+static const uint8_t SOIL_PIN_2 = 35;   // ADC pin for soil sensor 2
+static const uint8_t SOIL_PIN_3 = 33;   // ADC pin for soil sensor 3
 // ---------------------------
 
 // Global objects
 static DHT dht(DHTPIN, DHTTYPE);
 static WiFiServer server(80);
 static Preferences prefs;
+OLEDDisplay oled;  // Our custom OLED class instance
 
 // Sensor cached variables
 static float _temp = NAN;
 static float _hum = NAN;
-static int _soilRaw = 0;
-static float _soilPct = NAN;
+static int _soilRaw1 = 0, _soilRaw2 = 0, _soilRaw3 = 0;
+static float _soilPct1 = NAN, _soilPct2 = NAN, _soilPct3 = NAN;
 
 // Wi-Fi config
 static const char* AP_SSID = "SmartPlantSetup";
 static const char* AP_PASS = "smartplant";
 static unsigned long lastAttempt = 0;
 static bool isInAPMode = false;
+
+// Plant names (you can customize these)
+const String plantNames[] = {"Monstera Deliciosa", "Snake Plant", "Peace Lily"};
 
 // ========== SENSORS FUNCTIONS ==========
 void sensorsBegin() {
@@ -57,33 +64,69 @@ void sensorsUpdate() {
     _temp = t;
   }
 
-  // Soil sensor reading with validation
-  _soilRaw = analogRead(SOIL_PIN);
+  // Read all soil sensors
+  _soilRaw1 = analogRead(SOIL_PIN_1);
+  _soilRaw2 = analogRead(SOIL_PIN_2);
+  _soilRaw3 = analogRead(SOIL_PIN_3);
 
   // Map to percentage (inverted - higher value = drier)
   const int dryValue = 4095;  // Value when dry (in air)
   const int wetValue = 1500;  // Value when wet (in water)
 
-  int clamped = _soilRaw;
+  // Calculate percentages for all sensors
+  _soilPct1 = calculateSoilPercentage(_soilRaw1, dryValue, wetValue);
+  _soilPct2 = calculateSoilPercentage(_soilRaw2, dryValue, wetValue);
+  _soilPct3 = calculateSoilPercentage(_soilRaw3, dryValue, wetValue);
+}
+
+float calculateSoilPercentage(int rawValue, int dryValue, int wetValue) {
+  int clamped = rawValue;
   if (clamped > dryValue) clamped = dryValue;
   if (clamped < wetValue) clamped = wetValue;
 
-  _soilPct = 100.0f * (1.0f - float(clamped - wetValue) / float(dryValue - wetValue));
-  if (_soilPct < 0) _soilPct = 0;
-  if (_soilPct > 100) _soilPct = 100;
+  float percentage = 100.0f * (1.0f - float(clamped - wetValue) / float(dryValue - wetValue));
+  if (percentage < 0) percentage = 0;
+  if (percentage > 100) percentage = 100;
+  return percentage;
 }
 
 float getTemperature() {
   return _temp;
 }
+
 float getHumidity() {
   return _hum;
 }
-int getSoilRaw() {
-  return _soilRaw;
+
+int getSoilRaw(int sensorNum) {
+  switch(sensorNum) {
+    case 1: return _soilRaw1;
+    case 2: return _soilRaw2;
+    case 3: return _soilRaw3;
+    default: return 0;
+  }
 }
-float getSoilPercent() {
-  return _soilPct;
+
+float getSoilPercent(int sensorNum) {
+  switch(sensorNum) {
+    case 1: return _soilPct1;
+    case 2: return _soilPct2;
+    case 3: return _soilPct3;
+    default: return 0;
+  }
+}
+
+String getPlantName(int plantId) {
+  if (plantId >= 1 && plantId <= 3) {
+    return plantNames[plantId - 1];
+  }
+  return "Plant " + String(plantId);
+}
+
+String getPlantStatus(float soilMoisture) {
+  if (soilMoisture < 30) return "critical";
+  else if (soilMoisture < 60) return "warning";
+  else return "healthy";
 }
 
 // ========== WIFI MANAGER FUNCTIONS ==========
@@ -281,20 +324,20 @@ void handleClientRequest(WiFiClient& client, String method, String url, String b
   if (method == "GET" && url == "/api/plants") {
     sensorsUpdate();
     
-    // Return data for 3 plants (you can modify based on number of sensors)
+    // Return data for 3 plants with shared temperature and humidity
     String payload = "[";
-    payload += "{\"id\":1,\"name\":\"Monstera Deliciosa\",\"temperature\":" + String(getTemperature(), 1);
-    payload += ",\"humidity\":" + String(getHumidity(), 1);
-    payload += ",\"soilMoisture\":" + String(getSoilPercent(), 1);
-    payload += ",\"status\":\"";
-    
-    // Determine status based on soil moisture
-    float soil = getSoilPercent();
-    if (soil < 30) payload += "critical";
-    else if (soil < 60) payload += "warning";
-    else payload += "healthy";
-    
-    payload += "\"}]";
+    for (int i = 1; i <= 3; i++) {
+      if (i > 1) payload += ",";
+      payload += "{\"id\":" + String(i);
+      payload += ",\"name\":\"" + getPlantName(i) + "\"";
+      payload += ",\"temperature\":" + String(getTemperature(), 1);
+      payload += ",\"humidity\":" + String(getHumidity(), 1);
+      payload += ",\"soilMoisture\":" + String(getSoilPercent(i), 1);
+      payload += ",\"soilRaw\":" + String(getSoilRaw(i));
+      payload += ",\"status\":\"" + getPlantStatus(getSoilPercent(i)) + "\"";
+      payload += "}";
+    }
+    payload += "]";
     
     client.println("HTTP/1.1 200 OK");
     client.println("Content-type:application/json");
@@ -309,7 +352,8 @@ void handleClientRequest(WiFiClient& client, String method, String url, String b
     String payload = "{\"wifiConfigured\":";
     payload += isInAPMode ? "false" : "true";
     payload += ",\"ssid\":\"" + getWifiSSID() + "\"";
-    payload += ",\"ip\":\"" + getWifiIP() + "\"}";
+    payload += ",\"ip\":\"" + getWifiIP() + "\"";
+    payload += ",\"sensors\":3}"; // Now we have 3 sensors
     
     client.println("HTTP/1.1 200 OK");
     client.println("Content-type:application/json");
@@ -407,6 +451,9 @@ void setup() {
   Serial.println("\nSmart Plant Monitor Starting...");
   Serial.println("=================================");
 
+  // Initialize OLED
+  oled.begin();
+
   // Initialize LittleFS (Changed from SPIFFS)
   if (!LittleFS.begin(true)) {
     Serial.println("LittleFS Mount Failed");
@@ -419,7 +466,15 @@ void setup() {
   wifiBegin();
   webserverBegin();
 
+  // Show initial IP on OLED
+  if (oled.isAvailable()) {
+    delay(1000);
+    float emptySoil[] = {0, 0, 0};
+    oled.updateDisplay(getWifiSSID(), getWifiIP(), isInAPMode, getTemperature(), getHumidity(), emptySoil, 3);
+  }
+
   Serial.println("\nSYSTEM READY");
+  Serial.println("Sensors: 1 DHT + 3 Soil Moisture");
   if (isInAPMode) {
     Serial.println("MODE: Access Point");
     Serial.println("Connect to: SmartPlantSetup");
@@ -440,6 +495,21 @@ void loop() {
   if (millis() - lastSensorUpdate > 5000) {
     lastSensorUpdate = millis();
     sensorsUpdate();
+
+    // Update OLED display with current sensor data
+    if (oled.isAvailable()) {
+      float soilMoisture[] = {getSoilPercent(1), getSoilPercent(2), getSoilPercent(3)};
+      oled.updateDisplay(getWifiSSID(), getWifiIP(), isInAPMode, 
+                        getTemperature(), getHumidity(), soilMoisture, 3);
+    }
+    
+    // Optional: Print sensor readings to serial for debugging
+    Serial.println("Sensor Readings:");
+    Serial.println("Temp: " + String(getTemperature(), 1) + "°C, Hum: " + String(getHumidity(), 1) + "%");
+    for (int i = 1; i <= 3; i++) {
+      Serial.println("Plant " + String(i) + " - Soil: " + String(getSoilPercent(i), 1) + "%, Raw: " + String(getSoilRaw(i)));
+    }
+    Serial.println("---");
   }
 
   // Handle Wi-Fi reconnection
